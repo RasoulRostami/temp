@@ -1,6 +1,7 @@
 import datetime
 
-from OpenSSL import crypto
+import certifi
+from OpenSSL import SSL, crypto
 
 data = {
     "public_key": """
@@ -166,6 +167,19 @@ def separate_certificates(certification_pem: str):
     return root, untrusted, intermediate
 
 
+def separate_root_certificates():
+    root_address = "/etc/ssl/certs/ca-certificates.crt"
+    certificates = []
+    cert_data = ""
+    with open(root_address) as my_file:
+        for line in my_file.read().strip().splitlines():
+            cert_data += line + "\n"
+            if line.strip() == "-----END CERTIFICATE-----":
+                certificates.append(cert_data)
+                cert_data = ""
+    return certificates
+
+
 # check pem format
 certificate = crypto.load_certificate(crypto.FILETYPE_PEM, data.get("public_key"))
 private_key = crypto.load_privatekey(crypto.FILETYPE_PEM, data.get("private_key"))
@@ -185,30 +199,163 @@ if issuer == subject:
     raise ValueError("self signed")
 
 ### Full chain check
-root, untrusted, intermediate = separate_certificates(data.get("public_key"))
-root = bytes(root, "utf-8")
-untrusted = bytes(untrusted, "utf-8")
-intermediate = bytes(intermediate, "utf-8")
-root_cert = crypto.load_certificate(crypto.FILETYPE_PEM, root)
-intermediate_cert = crypto.load_certificate(crypto.FILETYPE_PEM, intermediate)
-untrusted_cert = crypto.load_certificate(crypto.FILETYPE_PEM, untrusted)
+# test  one
+"""
 store = crypto.X509Store()
-store.add_cert(root_cert)
-store.add_cert(intermediate_cert)
-store_ctx = crypto.X509StoreContext(store, untrusted_cert)
+for cert in separate_root_certificates():
+    store.add_cert(crypto.load_certificate(crypto.FILETYPE_PEM, cert))
+store_ctx = crypto.X509StoreContext(store, certificate)
 store_ctx.verify_certificate()
-
 """
-chain 0 -> issuer
-cahin 1 -> isseued by chian 0
-cahin 2 -> 
 
 
-crate CA -> private , cert
-private, cert
-sign by private ca
-
-
-
-    # check ca with valid ca , if we want to no accept self signed
+# test two
 """
+store = crypto.X509Store()
+counter = 1
+for cert in separate_certificates(data.get("public_key")):
+    print(counter)
+    store.add_cert(crypto.load_certificate(crypto.FILETYPE_PEM, cert))
+    counter += 1
+store_ctx = crypto.X509StoreContext(store, certificate)
+store_ctx.verify_certificate()
+"""
+
+# test three
+"""
+store = crypto.X509Store()
+root_address = "/etc/ssl/certs/ca-certificates.crt"
+with open(root_address) as my_file:
+    store.add_cert(crypto.load_certificate(crypto.FILETYPE_PEM, my_file.read()))
+store_ctx = crypto.X509StoreContext(store, certificate)
+store_ctx.verify_certificate()
+"""
+
+
+# test four
+"""
+import pem
+
+root_address = "/etc/ssl/certs/ca-certificates.crt"
+store = crypto.X509Store()
+with open(root_address) as my_file:
+    certificates = my_file.read().rstrip()
+for cert in pem.parse(certificates):
+    store.add_cert(crypto.load_certificate(crypto.FILETYPE_PEM, str(cert)))
+store_ctx = crypto.X509StoreContext(store, certificate)
+store_ctx.verify_certificate()
+"""
+
+# test five
+"""
+def verify_certificate_context(cert_pem):
+    # Load the certificate using pyopenssl
+    certificate_obj = crypto.load_certificate(crypto.FILETYPE_PEM, cert_pem)
+
+    # Create an SSL context using the system's trusted CA certificates (certifi)
+    ssl_context = SSL.Context(SSL.TLSv1_2_METHOD)
+    ssl_context.load_verify_locations(cafile=certifi.where())
+
+    # Create a store and add the certificate
+    store = ssl_context.get_cert_store()
+    store.add_cert(certificate_obj)
+
+    # Verify the certificate chain
+    try:
+        ssl_context.verify_certificate()
+        print("Certificate context is valid.")
+        return True
+    except SSL.Error as e:
+        print("Certificate context verification failed:", e)
+        return False
+
+
+verify_certificate_context(data.get("public_key"))
+"""
+
+# test six
+"""
+def verify_certificate_context(cert_pem):
+    # Create an SSL context using the system's trusted CA certificates (certifi)
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+
+    # Set the verification mode to CERT_REQUIRED to verify the certificate chain
+    ssl_context.verify_mode = ssl.CERT_REQUIRED
+
+    # Load the certificate into the context
+    ssl_context.load_verify_locations(cadata=cert_pem)
+
+    # Create a socket and connect to a server using the certificate context
+    try:
+        with socket.create_connection(("example.com", 443)) as sock:
+            with ssl_context.wrap_socket(sock, server_hostname="example.com") as conn:
+                pass  # No need to perform any operation, as the handshake will verify the certificate
+        print("Certificate context is valid.")
+        return True
+    except ssl.SSLError as e:
+        print("Certificate context verification failed:", e)
+        return False
+    except socket.error as e:
+        print("Socket error:", e)
+        return False
+"""
+
+# test seven
+"""
+def verify_certificate_context(cert_pem):
+    # Load the certificate using pyopenssl
+    certificate_obj = OpenSSL.crypto.load_certificate(
+        OpenSSL.crypto.FILETYPE_PEM, cert_pem
+    )
+
+    # Create a certificate store and add the certificate
+    store = OpenSSL.crypto.X509Store()
+    store.add_cert(certificate_obj)
+
+    # Create a certificate context
+    context = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_2_METHOD)
+
+    # Set the certificate store for the context
+    context.set_verify(OpenSSL.SSL.VERIFY_PEER, lambda _, __, ___, ok: ok)
+    context.cert_store = store
+
+    # Perform the certificate verification
+    try:
+        context.verify_certificate()
+        print("Certificate context is valid.")
+        return True
+    except OpenSSL.SSL.Error as e:
+        print("Certificate context verification failed:", e)
+        return False
+"""
+
+
+# test eight
+def verify_certificate_context(cert_pem):
+    root, untrusted, intermediate = separate_certificates(data.get("public_key"))
+    root = bytes(root, "utf-8")
+    untrusted = bytes(untrusted, "utf-8")
+    intermediate = bytes(intermediate, "utf-8")
+    root_cert = crypto.load_certificate(crypto.FILETYPE_PEM, root)
+    intermediate_cert = crypto.load_certificate(crypto.FILETYPE_PEM, intermediate)
+    untrusted_cert = crypto.load_certificate(crypto.FILETYPE_PEM, untrusted)
+    store = crypto.X509Store()
+    store.load_locations(certifi.where())
+    store.add_cert(root_cert)
+    store.add_cert(intermediate_cert)
+    store_ctx = crypto.X509StoreContext(store, untrusted_cert)
+    store_ctx.verify_certificate()
+
+
+# test nine not work
+"""
+def verify_certificate_context(cert_pem):
+    certificate = crypto.load_certificate(crypto.FILETYPE_PEM, data.get("public_key"))
+    store = crypto.X509Store()
+    store.load_locations(certifi.where())
+    # store.add_cert(certificate)
+    store_ctx = crypto.X509StoreContext(store, certificate)
+    store_ctx.verify_certificate()
+"""
+
+verify_certificate_context(data.get("public_key"))
