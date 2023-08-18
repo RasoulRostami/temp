@@ -31,7 +31,6 @@ j3DUVIGPrXiFVrl8wVvurbfS1d6EjycQWe8uX1gLkExlYsBE4mCUs8//pJ5M8Bqi
 LWt0N77el1nJrupFQeNuKahn8WCy3aUskHYeo4t+vAbH2sHR66CxcKpImEqBL789
 TTPbC5TdUb5tkXeNayZOPNlq
 -----END CERTIFICATE-----
-
 -----BEGIN CERTIFICATE-----
 MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw
 TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
@@ -62,7 +61,6 @@ HlUjr8gRsI3qfJOQFy/9rKIJR0Y/8Omwt/8oTWgy1mdeHmmjk7j1nYsvC9JSQ6Zv
 MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX
 nLRbwHOoq7hHwg==
 -----END CERTIFICATE-----
-
 -----BEGIN CERTIFICATE-----
 MIIFYDCCBEigAwIBAgIQQAF3ITfU6UK47naqPGQKtzANBgkqhkiG9w0BAQsFADA/
 MSQwIgYDVQQKExtEaWdpdGFsIFNpZ25hdHVyZSBUcnVzdCBDby4xFzAVBgNVBAMT
@@ -164,6 +162,20 @@ def separate_certificates(certification_pem: str):
     root = certs[-1]
     untrusted = certs[0]
     intermediate = "\n\n".join(certs[1:])
+    return root, untrusted, intermediate
+
+
+def separate_certificates_2(certification_pem: str):
+    certificates = []
+    cert_data = ""
+    for line in certification_pem.strip().splitlines():
+        cert_data += line + "\n"
+        if line.strip() == "-----END CERTIFICATE-----":
+            certificates.append(cert_data)
+            cert_data = ""
+    root = certificates[-1]
+    untrusted = certificates[0]
+    intermediate = "\n\n".join(certificates[1:])
     return root, untrusted, intermediate
 
 
