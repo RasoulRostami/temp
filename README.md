@@ -1,3 +1,5 @@
-# IT is just some simple code to do my daily tasks
+# Temp file
 
-NOTE: this cert are invalid :)
+These are some simple code I usually use it daily.
+
+NOTE: this SSL cert are invalid :)
